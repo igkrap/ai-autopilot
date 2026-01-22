@@ -32,11 +32,15 @@ class MessageBubble(QtWidgets.QFrame):
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        self.role = role
         self.setFrameShape(QtWidgets.QFrame.StyledPanel)
-        self.setObjectName(f"bubble-{role}")
+        self.setObjectName("bubble")
+        self.setProperty("role", role)
         layout = QtWidgets.QVBoxLayout(self)
-        header = QtWidgets.QLabel(role.upper())
-        header.setObjectName("bubble-header")
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(6)
+        header = QtWidgets.QLabel("You" if role == "user" else role.capitalize())
+        header.setObjectName(f"bubble-header-{role}")
         layout.addWidget(header)
         if content.strip().startswith("{"):
             layout.addWidget(CodeBlock(content))
@@ -72,6 +76,11 @@ class ChatInputWidget(QtWidgets.QWidget):
         layout = QtWidgets.QHBoxLayout(self)
         self.text_edit = QtWidgets.QTextEdit()
         self.text_edit.setPlaceholderText("메시지를 입력하세요...")
+        self.text_edit.setMinimumHeight(80)
+        self.text_edit.setAcceptRichText(False)
+        font = QtGui.QFont("Segoe UI")
+        font.setPointSize(10)
+        self.text_edit.setFont(font)
         self.send_button = QtWidgets.QPushButton("Send")
         layout.addWidget(self.text_edit, 1)
         layout.addWidget(self.send_button)
@@ -99,12 +108,24 @@ class ChatView(QtWidgets.QScrollArea):
         super().__init__(parent)
         self.container = QtWidgets.QWidget()
         self.layout = QtWidgets.QVBoxLayout(self.container)
+        self.layout.setContentsMargins(16, 16, 16, 16)
+        self.layout.setSpacing(12)
         self.layout.addStretch()
         self.setWidget(self.container)
         self.setWidgetResizable(True)
 
-    def add_message(self, bubble: MessageBubble) -> None:
-        self.layout.insertWidget(self.layout.count() - 1, bubble)
+    def add_message(self, role: str, bubble: MessageBubble) -> None:
+        row = QtWidgets.QWidget()
+        row_layout = QtWidgets.QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(8)
+        if role == "user":
+            row_layout.addStretch(1)
+            row_layout.addWidget(bubble, 0)
+        else:
+            row_layout.addWidget(bubble, 0)
+            row_layout.addStretch(1)
+        self.layout.insertWidget(self.layout.count() - 1, row)
         QtCore.QTimer.singleShot(0, self._scroll_to_bottom)
 
     def clear_messages(self) -> None:

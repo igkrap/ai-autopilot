@@ -165,9 +165,12 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(session_widget)
 
         chat_panel = QtWidgets.QVBoxLayout()
+        chat_header = QtWidgets.QLabel("Chat")
+        chat_header.setObjectName("chat-header")
         self.chat_view = ChatView()
         self.chat_input = ChatInputWidget()
         self.chat_input.send_message.connect(self._handle_send)
+        chat_panel.addWidget(chat_header)
         chat_panel.addWidget(self.chat_view, 1)
         chat_panel.addWidget(self.chat_input)
         chat_widget = QtWidgets.QWidget()
@@ -177,8 +180,10 @@ class MainWindow(QtWidgets.QMainWindow):
         control_panel = QtWidgets.QVBoxLayout()
         control_panel.addWidget(QtWidgets.QLabel("Agent Controls"))
         self.capture_mode_combo = QtWidgets.QComboBox()
-        self.capture_mode_combo.addItems(["active", "roi", "monitor"])
-        self.capture_mode_combo.currentTextChanged.connect(self._set_capture_mode)
+        self.capture_mode_combo.addItem("Active Window", "active")
+        self.capture_mode_combo.addItem("ROI (관심 영역)", "roi")
+        self.capture_mode_combo.addItem("Monitor", "monitor")
+        self.capture_mode_combo.currentIndexChanged.connect(self._set_capture_mode)
         control_panel.addWidget(QtWidgets.QLabel("Capture Target"))
         control_panel.addWidget(self.capture_mode_combo)
         self.monitor_combo = QtWidgets.QComboBox()
@@ -186,9 +191,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.monitor_combo.currentIndexChanged.connect(self._set_monitor)
         control_panel.addWidget(QtWidgets.QLabel("Monitor"))
         control_panel.addWidget(self.monitor_combo)
-        roi_button = QtWidgets.QPushButton("Select ROI")
+        roi_button = QtWidgets.QPushButton("Select ROI (관심 영역)")
         roi_button.clicked.connect(self._select_roi)
         control_panel.addWidget(roi_button)
+        roi_help = QtWidgets.QLabel("ROI는 화면에서 자동화를 허용할 관심 영역입니다.")
+        roi_help.setWordWrap(True)
+        roi_help.setObjectName("roi-help")
+        control_panel.addWidget(roi_help)
         self.auto_capture_checkbox = QtWidgets.QCheckBox("Auto Capture on Send")
         self.auto_capture_checkbox.setChecked(True)
         self.auto_capture_checkbox.toggled.connect(self._toggle_auto_capture)
@@ -243,7 +252,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.chat_view.clear_messages()
         for message in self.storage.list_messages(session_id):
             bubble = MessageBubble(message.role, message.content, message.attachment_path)
-            self.chat_view.add_message(bubble)
+            self.chat_view.add_message(message.role, bubble)
 
     def _switch_session(self, item: QtWidgets.QListWidgetItem) -> None:
         session_id = item.data(QtCore.Qt.UserRole)
@@ -317,7 +326,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _handle_send(self, message: str) -> None:
         self.storage.add_message(self.current_session_id, "user", message, None)
-        self.chat_view.add_message(MessageBubble("user", message, None))
+        self.chat_view.add_message("user", MessageBubble("user", message, None))
         if not self.auto_capture:
             self._append_info("캡처가 비활성화되어 있습니다.")
             return
@@ -400,7 +409,7 @@ class MainWindow(QtWidgets.QMainWindow):
         }
         response_text = json.dumps(response, ensure_ascii=False, indent=2)
         self.storage.add_message(self.current_session_id, "agent", response_text, result.after_path)
-        self.chat_view.add_message(MessageBubble("agent", response_text, result.after_path))
+        self.chat_view.add_message("agent", MessageBubble("agent", response_text, result.after_path))
         if self.loop_running:
             self.loop_remaining -= 1
             if self.loop_remaining > 0:
@@ -420,10 +429,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self._append_info(f"Capture saved: {path}")
 
     def _append_info(self, text: str) -> None:
-        self.chat_view.add_message(MessageBubble("info", text, None))
+        self.chat_view.add_message("info", MessageBubble("info", text, None))
 
     def _append_error(self, text: str) -> None:
-        self.chat_view.add_message(MessageBubble("error", text, None))
+        self.chat_view.add_message("error", MessageBubble("error", text, None))
 
     def _confirm_risky(self) -> bool:
         first = QtWidgets.QMessageBox.question(self, "Confirm", "위험 작업이 감지되었습니다. 계속할까요?")
@@ -432,8 +441,10 @@ class MainWindow(QtWidgets.QMainWindow):
         second = QtWidgets.QMessageBox.question(self, "Confirm", "정말로 실행하시겠습니까?")
         return second == QtWidgets.QMessageBox.Yes
 
-    def _set_capture_mode(self, mode: str) -> None:
-        self.capture_mode = mode
+    def _set_capture_mode(self, index: int) -> None:
+        data = self.capture_mode_combo.itemData(index)
+        if isinstance(data, str):
+            self.capture_mode = data
 
     def _set_monitor(self, index: int) -> None:
         data = self.monitor_combo.itemData(index)
@@ -473,26 +484,50 @@ class MainWindow(QtWidgets.QMainWindow):
         if theme == "dark":
             self.setStyleSheet(
                 """
-                QMainWindow { background: #1e1e1e; color: #d4d4d4; }
+                QMainWindow { background: #1e1e1e; color: #d4d4d4; font-family: 'Segoe UI'; }
                 QLabel { color: #d4d4d4; }
-                QFrame#bubble-user { background: #0e639c; border-radius: 6px; padding: 8px; }
-                QFrame#bubble-agent { background: #252526; border-radius: 6px; padding: 8px; }
-                QFrame#bubble-info { background: #3c3c3c; border-radius: 6px; padding: 8px; }
-                QFrame#bubble-error { background: #5a1d1d; border-radius: 6px; padding: 8px; }
-                QPlainTextEdit { background: #1e1e1e; color: #d4d4d4; }
-                QTextEdit { background: #1e1e1e; color: #d4d4d4; }
+                QLabel#chat-header { font-size: 16px; font-weight: 600; padding: 8px 12px; }
+                QLabel#roi-help { color: #9da0a6; font-size: 11px; }
+                QListWidget { background: #252526; border: none; color: #d4d4d4; }
+                QListWidget::item:selected { background: #094771; }
+                QScrollArea { border: none; }
+                QFrame#bubble { background: #252526; border-radius: 10px; }
+                QFrame#bubble[role="user"] { background: #0e639c; }
+                QFrame#bubble[role="info"] { background: #333333; }
+                QFrame#bubble[role="error"] { background: #5a1d1d; }
+                QLabel#bubble-header-user { color: #9cdcfe; font-weight: 600; }
+                QLabel#bubble-header-agent { color: #c586c0; font-weight: 600; }
+                QLabel#bubble-header-info { color: #4fc1ff; font-weight: 600; }
+                QLabel#bubble-header-error { color: #f44747; font-weight: 600; }
+                QPlainTextEdit { background: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c; }
+                QTextEdit { background: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c; }
+                QPushButton { background: #0e639c; color: #ffffff; border-radius: 4px; padding: 6px 12px; }
+                QPushButton:hover { background: #1177bb; }
+                QComboBox, QLineEdit { background: #2d2d2d; border: 1px solid #3c3c3c; padding: 4px; }
                 """
             )
         else:
             self.setStyleSheet(
                 """
-                QMainWindow { background: #f5f5f5; color: #333333; }
+                QMainWindow { background: #f5f5f5; color: #333333; font-family: 'Segoe UI'; }
                 QLabel { color: #333333; }
-                QFrame#bubble-user { background: #d6eaff; border-radius: 6px; padding: 8px; }
-                QFrame#bubble-agent { background: #ffffff; border-radius: 6px; padding: 8px; }
-                QFrame#bubble-info { background: #f0f0f0; border-radius: 6px; padding: 8px; }
-                QFrame#bubble-error { background: #ffd6d6; border-radius: 6px; padding: 8px; }
-                QPlainTextEdit { background: #ffffff; color: #333333; }
-                QTextEdit { background: #ffffff; color: #333333; }
+                QLabel#chat-header { font-size: 16px; font-weight: 600; padding: 8px 12px; }
+                QLabel#roi-help { color: #6b6f76; font-size: 11px; }
+                QListWidget { background: #ffffff; border: none; color: #333333; }
+                QListWidget::item:selected { background: #e5f1fb; }
+                QScrollArea { border: none; }
+                QFrame#bubble { background: #ffffff; border-radius: 10px; border: 1px solid #e5e5e5; }
+                QFrame#bubble[role="user"] { background: #d6eaff; border: 1px solid #c1def5; }
+                QFrame#bubble[role="info"] { background: #f0f0f0; }
+                QFrame#bubble[role="error"] { background: #ffd6d6; border: 1px solid #f2bdbd; }
+                QLabel#bubble-header-user { color: #0066b8; font-weight: 600; }
+                QLabel#bubble-header-agent { color: #7a3e9d; font-weight: 600; }
+                QLabel#bubble-header-info { color: #1a75c4; font-weight: 600; }
+                QLabel#bubble-header-error { color: #b00020; font-weight: 600; }
+                QPlainTextEdit { background: #ffffff; color: #333333; border: 1px solid #cccccc; }
+                QTextEdit { background: #ffffff; color: #333333; border: 1px solid #cccccc; }
+                QPushButton { background: #0e639c; color: #ffffff; border-radius: 4px; padding: 6px 12px; }
+                QPushButton:hover { background: #1177bb; }
+                QComboBox, QLineEdit { background: #ffffff; border: 1px solid #cccccc; padding: 4px; }
                 """
             )

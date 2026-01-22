@@ -19,6 +19,7 @@ python app.py
 ## 사용 방법
 
 ### 1) ROI 설정
+ROI는 자동화를 허용할 **관심 영역(Region of Interest)** 을 의미합니다.
 1. 오른쪽 `Select ROI` 버튼을 클릭합니다.
 2. 전체 화면 오버레이에서 드래그하여 ROI 영역을 지정합니다.
 3. `Capture Target`을 `roi`로 선택하면 ROI 캡처가 활성화됩니다.
