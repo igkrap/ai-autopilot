@@ -132,12 +132,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.roi_bounds: dict[str, int] | None = None
         self.capture_mode = "active"
         self.monitor_index = 0
-        self.auto_capture = True
         self.loop_running = False
         self.loop_remaining = 0
         self.last_user_message = ""
         self._build_ui()
-        self._load_sessions()
         self._load_messages(self.current_session_id)
         self._load_settings(self.current_session_id)
 
@@ -145,24 +143,6 @@ class MainWindow(QtWidgets.QMainWindow):
         container = QtWidgets.QWidget()
         layout = QtWidgets.QHBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
-
-        self.session_list = QtWidgets.QListWidget()
-        self.session_list.setFixedWidth(220)
-        self.session_list.itemClicked.connect(self._switch_session)
-        session_buttons = QtWidgets.QHBoxLayout()
-        new_button = QtWidgets.QPushButton("New")
-        delete_button = QtWidgets.QPushButton("Delete")
-        new_button.clicked.connect(self._new_session)
-        delete_button.clicked.connect(self._delete_session)
-        session_buttons.addWidget(new_button)
-        session_buttons.addWidget(delete_button)
-        session_panel = QtWidgets.QVBoxLayout()
-        session_panel.addWidget(QtWidgets.QLabel("Sessions"))
-        session_panel.addWidget(self.session_list)
-        session_panel.addLayout(session_buttons)
-        session_widget = QtWidgets.QWidget()
-        session_widget.setLayout(session_panel)
-        layout.addWidget(session_widget)
 
         chat_panel = QtWidgets.QVBoxLayout()
         chat_header = QtWidgets.QLabel("Chat")
@@ -198,26 +178,16 @@ class MainWindow(QtWidgets.QMainWindow):
         roi_help.setWordWrap(True)
         roi_help.setObjectName("roi-help")
         control_panel.addWidget(roi_help)
-        self.auto_capture_checkbox = QtWidgets.QCheckBox("Auto Capture on Send")
-        self.auto_capture_checkbox.setChecked(True)
-        self.auto_capture_checkbox.toggled.connect(self._toggle_auto_capture)
-        control_panel.addWidget(self.auto_capture_checkbox)
         self.loop_checkbox = QtWidgets.QCheckBox("Repeat Loop")
         control_panel.addWidget(self.loop_checkbox)
         stop_button = QtWidgets.QPushButton("Stop")
         stop_button.clicked.connect(self._stop_loop)
         control_panel.addWidget(stop_button)
-        capture_button = QtWidgets.QPushButton("Capture Now")
-        capture_button.clicked.connect(self._manual_capture)
-        control_panel.addWidget(capture_button)
         self.provider_label = QtWidgets.QLabel("Model: stub")
         control_panel.addWidget(self.provider_label)
         settings_button = QtWidgets.QPushButton("Settings")
         settings_button.clicked.connect(self._open_settings)
         control_panel.addWidget(settings_button)
-        theme_button = QtWidgets.QPushButton("Toggle Theme")
-        theme_button.clicked.connect(self._toggle_theme)
-        control_panel.addWidget(theme_button)
         control_panel.addStretch(1)
         control_widget = QtWidgets.QWidget()
         control_widget.setLayout(control_panel)
@@ -225,7 +195,7 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(control_widget)
 
         self.setCentralWidget(container)
-        self._apply_theme("dark")
+        self._apply_theme()
 
     def _ensure_session(self) -> str:
         sessions = self.storage.list_sessions()
@@ -236,51 +206,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.session_files.ensure_session_assets(session_id)
         return session_id
 
-    def _load_sessions(self) -> None:
-        self.session_list.clear()
-        for session in self.storage.list_sessions():
-            item = QtWidgets.QListWidgetItem(session.title)
-            item.setData(QtCore.Qt.UserRole, session.session_id)
-            self.session_list.addItem(item)
-        for index in range(self.session_list.count()):
-            item = self.session_list.item(index)
-            if item.data(QtCore.Qt.UserRole) == self.current_session_id:
-                item.setSelected(True)
-                break
-
     def _load_messages(self, session_id: str) -> None:
         self.chat_view.clear_messages()
         for message in self.storage.list_messages(session_id):
             bubble = MessageBubble(message.role, message.content, message.attachment_path)
             self.chat_view.add_message(message.role, bubble)
-
-    def _switch_session(self, item: QtWidgets.QListWidgetItem) -> None:
-        session_id = item.data(QtCore.Qt.UserRole)
-        if session_id:
-            self.current_session_id = session_id
-            self._load_messages(session_id)
-            self._load_settings(session_id)
-
-    def _new_session(self) -> None:
-        session_id = uuid.uuid4().hex
-        self.storage.create_session(session_id, "New Session")
-        self.session_files.ensure_session_assets(session_id)
-        self.current_session_id = session_id
-        self._load_sessions()
-        self._load_messages(session_id)
-        self._load_settings(session_id)
-
-    def _delete_session(self) -> None:
-        items = self.session_list.selectedItems()
-        if not items:
-            return
-        session_id = items[0].data(QtCore.Qt.UserRole)
-        if session_id:
-            self.storage.delete_session(session_id)
-            self._load_sessions()
-            self.current_session_id = self._ensure_session()
-            self._load_messages(self.current_session_id)
-            self._load_settings(self.current_session_id)
 
     def _open_settings(self) -> None:
         dialog = SettingsDialog(self.settings.copy(), self)
@@ -327,9 +257,6 @@ class MainWindow(QtWidgets.QMainWindow):
     def _handle_send(self, message: str) -> None:
         self.storage.add_message(self.current_session_id, "user", message, None)
         self.chat_view.add_message("user", MessageBubble("user", message, None))
-        if not self.auto_capture:
-            self._append_info("캡처가 비활성화되어 있습니다.")
-            return
         self.last_user_message = message
         safety = self._build_safety()
         if safety.should_block(message):
@@ -417,17 +344,6 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 self.loop_running = False
 
-    def _manual_capture(self) -> None:
-        captures_dir = self.session_files.captures_path(self.current_session_id)
-        path = self.capture.build_capture_path(captures_dir, "manual")
-        if self.capture_mode == "roi" and self.roi_bounds:
-            self.capture.capture_roi(self.roi_bounds, path)
-        elif self.capture_mode == "monitor":
-            self.capture.capture_monitor(self.monitor_index, path)
-        else:
-            self.capture.capture_active_window(path)
-        self._append_info(f"Capture saved: {path}")
-
     def _append_info(self, text: str) -> None:
         self.chat_view.add_message("info", MessageBubble("info", text, None))
 
@@ -450,9 +366,6 @@ class MainWindow(QtWidgets.QMainWindow):
         data = self.monitor_combo.itemData(index)
         self.monitor_index = int(data) if data is not None else index
 
-    def _toggle_auto_capture(self, checked: bool) -> None:
-        self.auto_capture = checked
-
     def _stop_loop(self) -> None:
         self.loop_running = False
         self.loop_remaining = 0
@@ -474,60 +387,27 @@ class MainWindow(QtWidgets.QMainWindow):
             label = f"Monitor {monitor['index']} ({monitor['width']}x{monitor['height']})"
             self.monitor_combo.addItem(label, monitor["index"])
 
-    def _toggle_theme(self) -> None:
-        current = self.property("theme") or "dark"
-        next_theme = "light" if current == "dark" else "dark"
-        self._apply_theme(next_theme)
-
-    def _apply_theme(self, theme: str) -> None:
-        self.setProperty("theme", theme)
-        if theme == "dark":
-            self.setStyleSheet(
-                """
-                QMainWindow { background: #1e1e1e; color: #d4d4d4; font-family: 'Segoe UI'; }
-                QLabel { color: #d4d4d4; }
-                QLabel#chat-header { font-size: 16px; font-weight: 600; padding: 8px 12px; }
-                QLabel#roi-help { color: #9da0a6; font-size: 11px; }
-                QListWidget { background: #252526; border: none; color: #d4d4d4; }
-                QListWidget::item:selected { background: #094771; }
-                QScrollArea { border: none; }
-                QFrame#bubble { background: #252526; border-radius: 10px; }
-                QFrame#bubble[role="user"] { background: #0e639c; }
-                QFrame#bubble[role="info"] { background: #333333; }
-                QFrame#bubble[role="error"] { background: #5a1d1d; }
-                QLabel#bubble-header-user { color: #9cdcfe; font-weight: 600; }
-                QLabel#bubble-header-agent { color: #c586c0; font-weight: 600; }
-                QLabel#bubble-header-info { color: #4fc1ff; font-weight: 600; }
-                QLabel#bubble-header-error { color: #f44747; font-weight: 600; }
-                QPlainTextEdit { background: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c; }
-                QTextEdit { background: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c; }
-                QPushButton { background: #0e639c; color: #ffffff; border-radius: 4px; padding: 6px 12px; }
-                QPushButton:hover { background: #1177bb; }
-                QComboBox, QLineEdit { background: #2d2d2d; border: 1px solid #3c3c3c; padding: 4px; }
-                """
-            )
-        else:
-            self.setStyleSheet(
-                """
-                QMainWindow { background: #f5f5f5; color: #333333; font-family: 'Segoe UI'; }
-                QLabel { color: #333333; }
-                QLabel#chat-header { font-size: 16px; font-weight: 600; padding: 8px 12px; }
-                QLabel#roi-help { color: #6b6f76; font-size: 11px; }
-                QListWidget { background: #ffffff; border: none; color: #333333; }
-                QListWidget::item:selected { background: #e5f1fb; }
-                QScrollArea { border: none; }
-                QFrame#bubble { background: #ffffff; border-radius: 10px; border: 1px solid #e5e5e5; }
-                QFrame#bubble[role="user"] { background: #d6eaff; border: 1px solid #c1def5; }
-                QFrame#bubble[role="info"] { background: #f0f0f0; }
-                QFrame#bubble[role="error"] { background: #ffd6d6; border: 1px solid #f2bdbd; }
-                QLabel#bubble-header-user { color: #0066b8; font-weight: 600; }
-                QLabel#bubble-header-agent { color: #7a3e9d; font-weight: 600; }
-                QLabel#bubble-header-info { color: #1a75c4; font-weight: 600; }
-                QLabel#bubble-header-error { color: #b00020; font-weight: 600; }
-                QPlainTextEdit { background: #ffffff; color: #333333; border: 1px solid #cccccc; }
-                QTextEdit { background: #ffffff; color: #333333; border: 1px solid #cccccc; }
-                QPushButton { background: #0e639c; color: #ffffff; border-radius: 4px; padding: 6px 12px; }
-                QPushButton:hover { background: #1177bb; }
-                QComboBox, QLineEdit { background: #ffffff; border: 1px solid #cccccc; padding: 4px; }
-                """
-            )
+    def _apply_theme(self) -> None:
+        self.setProperty("theme", "dark")
+        self.setStyleSheet(
+            """
+            QMainWindow { background: #1e1e1e; color: #d4d4d4; font-family: 'Segoe UI'; }
+            QLabel { color: #d4d4d4; }
+            QLabel#chat-header { font-size: 16px; font-weight: 600; padding: 8px 12px; }
+            QLabel#roi-help { color: #9da0a6; font-size: 11px; }
+            QScrollArea { border: none; }
+            QFrame#bubble { background: #252526; border-radius: 10px; }
+            QFrame#bubble[role="user"] { background: #0e639c; }
+            QFrame#bubble[role="info"] { background: #333333; }
+            QFrame#bubble[role="error"] { background: #5a1d1d; }
+            QLabel#bubble-header-user { color: #9cdcfe; font-weight: 600; }
+            QLabel#bubble-header-agent { color: #c586c0; font-weight: 600; }
+            QLabel#bubble-header-info { color: #4fc1ff; font-weight: 600; }
+            QLabel#bubble-header-error { color: #f44747; font-weight: 600; }
+            QPlainTextEdit { background: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c; }
+            QTextEdit { background: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c; }
+            QPushButton { background: #0e639c; color: #ffffff; border-radius: 4px; padding: 6px 12px; }
+            QPushButton:hover { background: #1177bb; }
+            QComboBox, QLineEdit { background: #2d2d2d; border: 1px solid #3c3c3c; padding: 4px; }
+            """
+        )
