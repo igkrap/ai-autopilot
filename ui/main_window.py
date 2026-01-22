@@ -130,7 +130,6 @@ class MainWindow(QtWidgets.QMainWindow):
         }
         self.current_session_id = self._ensure_session()
         self.roi_bounds: dict[str, int] | None = None
-        self.roi_overlay: RoiSelector | None = None
         self.capture_mode = "active"
         self.monitor_index = 0
         self.loop_running = False
@@ -233,7 +232,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.roi_button = QtWidgets.QPushButton("Select ROI")
         self.roi_button.setObjectName("pill-button")
-        self.roi_button.clicked.connect(self._toggle_roi_overlay)
+        self.roi_button.clicked.connect(self._select_roi)
 
         self.loop_checkbox = QtWidgets.QCheckBox("Repeat")
         stop_button = QtWidgets.QPushButton("Stop")
@@ -430,25 +429,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.loop_remaining = 0
         self._append_info("루프 실행이 중지되었습니다.")
 
-    def _toggle_roi_overlay(self) -> None:
-        if self.roi_overlay and self.roi_overlay.isVisible():
-            self._apply_roi_overlay()
-            return
-        if not self.roi_overlay:
-            self.roi_overlay = RoiSelector()
-            self.roi_overlay.roi_updated.connect(self._set_roi)
-        self.roi_overlay.set_roi(self.roi_bounds)
-        self.roi_overlay.show()
-        self.roi_button.setText("Set ROI (관심 영역)")
-
-    def _apply_roi_overlay(self) -> None:
-        if not self.roi_overlay:
-            return
-        roi = self.roi_overlay.current_roi()
-        if roi:
-            self._set_roi(roi)
-        self.roi_overlay.hide()
-        self.roi_button.setText("Select ROI (관심 영역)")
+    def _select_roi(self) -> None:
+        selector = RoiSelector()
+        selector.roi_selected.connect(self._set_roi)
+        selector.show()
 
     def _set_roi(self, roi: dict[str, int]) -> None:
         self.roi_bounds = roi

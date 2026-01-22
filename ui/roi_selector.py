@@ -4,7 +4,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 
 class RoiSelector(QtWidgets.QWidget):
-    roi_updated = QtCore.Signal(dict)
+    roi_selected = QtCore.Signal(dict)
 
     def __init__(self) -> None:
         super().__init__()
@@ -59,12 +59,11 @@ class RoiSelector(QtWidgets.QWidget):
             self._roi_rect = QtCore.QRect(self.origin, self.current).normalized()
             roi = self.current_roi()
             if roi:
-                self.roi_updated.emit(roi)
-            self.update()
+                self.roi_selected.emit(roi)
+            self.close()
 
     def paintEvent(self, event: QtGui.QPaintEvent) -> None:
         painter = QtGui.QPainter(self)
-        painter.fillRect(self.rect(), QtGui.QColor(0, 0, 0, 30))
         if self.dragging:
             rect = QtCore.QRect(self.origin, self.current).normalized()
             painter.setPen(QtGui.QPen(QtGui.QColor(220, 60, 60), 2))
