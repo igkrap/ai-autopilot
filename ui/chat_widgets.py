@@ -73,19 +73,44 @@ class ChatInputWidget(QtWidgets.QWidget):
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
-        layout = QtWidgets.QHBoxLayout(self)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
         self.text_edit = QtWidgets.QTextEdit()
-        self.text_edit.setPlaceholderText("메시지를 입력하세요...")
-        self.text_edit.setMinimumHeight(80)
+        self.text_edit.setPlaceholderText("Send a message")
+        self.text_edit.setMinimumHeight(72)
         self.text_edit.setAcceptRichText(False)
         font = QtGui.QFont("Segoe UI")
         font.setPointSize(10)
         self.text_edit.setFont(font)
-        self.send_button = QtWidgets.QPushButton("Send")
-        layout.addWidget(self.text_edit, 1)
-        layout.addWidget(self.send_button)
+        self.text_edit.setObjectName("chat-input")
+
+        actions_row = QtWidgets.QHBoxLayout()
+        actions_row.setContentsMargins(8, 0, 8, 0)
+        actions_row.setSpacing(8)
+        self.attach_button = QtWidgets.QPushButton("+")
+        self.attach_button.setObjectName("chat-pill")
+        self.globe_button = QtWidgets.QPushButton("🌐")
+        self.globe_button.setObjectName("chat-pill")
+        self.model_button = QtWidgets.QPushButton("model")
+        self.model_button.setObjectName("chat-model")
+        self.send_button = QtWidgets.QPushButton("●")
+        self.send_button.setObjectName("chat-send")
+
+        actions_row.addWidget(self.attach_button)
+        actions_row.addWidget(self.globe_button)
+        actions_row.addWidget(self.model_button)
+        actions_row.addStretch(1)
+        actions_row.addWidget(self.send_button)
+
+        layout.addWidget(self.text_edit)
+        layout.addLayout(actions_row)
         self.send_button.clicked.connect(self._emit_message)
         self.text_edit.installEventFilter(self)
+
+    def set_model_label(self, label: str) -> None:
+        self.model_button.setText(label)
 
     def eventFilter(self, obj: QtCore.QObject, event: QtCore.QEvent) -> bool:
         if obj is self.text_edit and event.type() == QtCore.QEvent.KeyPress:

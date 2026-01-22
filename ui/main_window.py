@@ -152,51 +152,75 @@ class MainWindow(QtWidgets.QMainWindow):
         self.chat_input = ChatInputWidget()
         self.chat_input.send_message.connect(self._handle_send)
         chat_panel.addWidget(chat_header)
+        chat_panel.addWidget(self._build_top_controls())
         chat_panel.addWidget(self.chat_view, 1)
         chat_panel.addWidget(self.chat_input)
+        layout.addWidget(self._build_sidebar())
+
         chat_widget = QtWidgets.QWidget()
         chat_widget.setLayout(chat_panel)
         layout.addWidget(chat_widget, 1)
 
-        control_panel = QtWidgets.QVBoxLayout()
-        control_panel.addWidget(QtWidgets.QLabel("Agent Controls"))
+        self.setCentralWidget(container)
+        self._apply_theme()
+
+    def _build_sidebar(self) -> QtWidgets.QWidget:
+        sidebar = QtWidgets.QWidget()
+        sidebar.setObjectName("sidebar")
+        sidebar.setFixedWidth(240)
+        layout = QtWidgets.QVBoxLayout(sidebar)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        brand = QtWidgets.QLabel("Agent")
+        brand.setObjectName("sidebar-brand")
+        layout.addWidget(brand)
+
+        new_chat_button = QtWidgets.QPushButton("New Chat")
+        new_chat_button.setObjectName("sidebar-button")
+        new_chat_button.clicked.connect(self._reset_session)
+        settings_button = QtWidgets.QPushButton("Settings")
+        settings_button.setObjectName("sidebar-button")
+        settings_button.clicked.connect(self._open_settings)
+        layout.addWidget(new_chat_button)
+        layout.addWidget(settings_button)
+
+        layout.addStretch(1)
+        return sidebar
+
+    def _build_top_controls(self) -> QtWidgets.QWidget:
+        controls = QtWidgets.QWidget()
+        controls.setObjectName("top-controls")
+        layout = QtWidgets.QHBoxLayout(controls)
+        layout.setContentsMargins(12, 6, 12, 6)
+        layout.setSpacing(8)
+
         self.capture_mode_combo = QtWidgets.QComboBox()
         self.capture_mode_combo.addItem("Active Window", "active")
-        self.capture_mode_combo.addItem("ROI (관심 영역)", "roi")
+        self.capture_mode_combo.addItem("ROI", "roi")
         self.capture_mode_combo.addItem("Monitor", "monitor")
         self.capture_mode_combo.currentIndexChanged.connect(self._set_capture_mode)
-        control_panel.addWidget(QtWidgets.QLabel("Capture Target"))
-        control_panel.addWidget(self.capture_mode_combo)
+
         self.monitor_combo = QtWidgets.QComboBox()
         self._refresh_monitors()
         self.monitor_combo.currentIndexChanged.connect(self._set_monitor)
-        control_panel.addWidget(QtWidgets.QLabel("Monitor"))
-        control_panel.addWidget(self.monitor_combo)
-        self.roi_button = QtWidgets.QPushButton("Select ROI (관심 영역)")
-        self.roi_button.clicked.connect(self._toggle_roi_overlay)
-        control_panel.addWidget(self.roi_button)
-        roi_help = QtWidgets.QLabel("ROI는 화면에서 자동화를 허용할 관심 영역입니다.")
-        roi_help.setWordWrap(True)
-        roi_help.setObjectName("roi-help")
-        control_panel.addWidget(roi_help)
-        self.loop_checkbox = QtWidgets.QCheckBox("Repeat Loop")
-        control_panel.addWidget(self.loop_checkbox)
-        stop_button = QtWidgets.QPushButton("Stop")
-        stop_button.clicked.connect(self._stop_loop)
-        control_panel.addWidget(stop_button)
-        self.provider_label = QtWidgets.QLabel("Model: stub")
-        control_panel.addWidget(self.provider_label)
-        settings_button = QtWidgets.QPushButton("Settings")
-        settings_button.clicked.connect(self._open_settings)
-        control_panel.addWidget(settings_button)
-        control_panel.addStretch(1)
-        control_widget = QtWidgets.QWidget()
-        control_widget.setLayout(control_panel)
-        control_widget.setFixedWidth(260)
-        layout.addWidget(control_widget)
 
-        self.setCentralWidget(container)
-        self._apply_theme()
+        self.roi_button = QtWidgets.QPushButton("Select ROI")
+        self.roi_button.setObjectName("pill-button")
+        self.roi_button.clicked.connect(self._toggle_roi_overlay)
+
+        self.loop_checkbox = QtWidgets.QCheckBox("Repeat")
+        stop_button = QtWidgets.QPushButton("Stop")
+        stop_button.setObjectName("pill-button")
+        stop_button.clicked.connect(self._stop_loop)
+
+        layout.addWidget(self.capture_mode_combo)
+        layout.addWidget(self.monitor_combo)
+        layout.addWidget(self.roi_button)
+        layout.addStretch(1)
+        layout.addWidget(self.loop_checkbox)
+        layout.addWidget(stop_button)
+        return controls
 
     def _ensure_session(self) -> str:
         sessions = self.storage.list_sessions()
@@ -221,13 +245,21 @@ class MainWindow(QtWidgets.QMainWindow):
     def _apply_settings(self, settings: dict[str, Any]) -> None:
         self.settings = settings
         self.storage.save_settings(self.current_session_id, settings)
-        self.provider_label.setText(f"Model: {settings.get('provider_type', 'stub')}")
+        model_label = settings.get("model") or settings.get("provider_type", "stub")
+        self.chat_input.set_model_label(model_label)
 
     def _load_settings(self, session_id: str) -> None:
         loaded = self.storage.load_settings(session_id)
         if loaded:
             self.settings.update(loaded)
-        self.provider_label.setText(f"Model: {self.settings.get('provider_type', 'stub')}")
+        model_label = self.settings.get("model") or self.settings.get("provider_type", "stub")
+        self.chat_input.set_model_label(model_label)
+
+    def _reset_session(self) -> None:
+        self.storage.delete_session(self.current_session_id)
+        self.current_session_id = self._ensure_session()
+        self._load_messages(self.current_session_id)
+        self._load_settings(self.current_session_id)
 
     def _build_provider(self) -> Any:
         config = ProviderConfig(
@@ -407,23 +439,32 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setProperty("theme", "dark")
         self.setStyleSheet(
             """
-            QMainWindow { background: #1e1e1e; color: #d4d4d4; font-family: 'Segoe UI'; }
-            QLabel { color: #d4d4d4; }
+            QMainWindow { background: #141414; color: #e6e6e6; font-family: 'Segoe UI'; }
+            QLabel { color: #e6e6e6; }
             QLabel#chat-header { font-size: 16px; font-weight: 600; padding: 8px 12px; }
-            QLabel#roi-help { color: #9da0a6; font-size: 11px; }
             QScrollArea { border: none; }
-            QFrame#bubble { background: #252526; border-radius: 10px; }
-            QFrame#bubble[role="user"] { background: #0e639c; }
-            QFrame#bubble[role="info"] { background: #333333; }
-            QFrame#bubble[role="error"] { background: #5a1d1d; }
+            QWidget#sidebar { background: #101010; border-right: 1px solid #1f1f1f; }
+            QLabel#sidebar-brand { font-size: 18px; font-weight: 700; padding: 8px 0; }
+            QPushButton#sidebar-button { background: transparent; color: #e6e6e6; text-align: left; padding: 8px 12px; border-radius: 8px; }
+            QPushButton#sidebar-button:hover { background: #1f1f1f; }
+            QWidget#top-controls { background: #1a1a1a; border-radius: 10px; }
+            QFrame#bubble { background: #232323; border-radius: 10px; }
+            QFrame#bubble[role="user"] { background: #2b2b2b; }
+            QFrame#bubble[role="info"] { background: #1f1f1f; }
+            QFrame#bubble[role="error"] { background: #3a1d1d; }
             QLabel#bubble-header-user { color: #9cdcfe; font-weight: 600; }
             QLabel#bubble-header-agent { color: #c586c0; font-weight: 600; }
             QLabel#bubble-header-info { color: #4fc1ff; font-weight: 600; }
             QLabel#bubble-header-error { color: #f44747; font-weight: 600; }
-            QPlainTextEdit { background: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c; }
-            QTextEdit { background: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c; }
-            QPushButton { background: #0e639c; color: #ffffff; border-radius: 4px; padding: 6px 12px; }
-            QPushButton:hover { background: #1177bb; }
-            QComboBox, QLineEdit { background: #2d2d2d; border: 1px solid #3c3c3c; padding: 4px; }
+            QPlainTextEdit { background: #1b1b1b; color: #e6e6e6; border: 1px solid #2a2a2a; border-radius: 14px; padding: 12px; }
+            QTextEdit#chat-input { background: #1b1b1b; color: #e6e6e6; border: 1px solid #2a2a2a; border-radius: 18px; padding: 12px; }
+            QPushButton { background: #2a2a2a; color: #e6e6e6; border-radius: 10px; padding: 6px 12px; }
+            QPushButton:hover { background: #303030; }
+            QPushButton#pill-button { background: #262626; border-radius: 12px; padding: 6px 12px; }
+            QPushButton#chat-pill { background: #2a2a2a; border-radius: 16px; padding: 6px 10px; min-width: 28px; }
+            QPushButton#chat-model { background: #2a2a2a; border-radius: 16px; padding: 6px 12px; }
+            QPushButton#chat-send { background: #ffffff; color: #141414; border-radius: 18px; min-width: 36px; min-height: 36px; }
+            QComboBox { background: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 10px; padding: 6px 10px; }
+            QCheckBox { padding: 4px 8px; }
             """
         )
