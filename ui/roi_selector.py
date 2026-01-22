@@ -58,9 +58,12 @@ class RoiSelector(QtWidgets.QWidget):
             self.dragging = False
             self._roi_rect = QtCore.QRect(self.origin, self.current).normalized()
             roi = self.current_roi()
-            if roi:
+            if roi and roi["width"] > 2 and roi["height"] > 2:
                 self.roi_selected.emit(roi)
-            self.close()
+                self.close()
+            else:
+                self._roi_rect = None
+                self.update()
 
     def paintEvent(self, event: QtGui.QPaintEvent) -> None:
         painter = QtGui.QPainter(self)
