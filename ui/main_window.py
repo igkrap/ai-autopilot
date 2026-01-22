@@ -146,13 +146,23 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
 
         chat_panel = QtWidgets.QVBoxLayout()
+        header_row = QtWidgets.QHBoxLayout()
+        header_row.setContentsMargins(12, 8, 12, 0)
         chat_header = QtWidgets.QLabel("Chat")
         chat_header.setObjectName("chat-header")
+        header_row.addWidget(chat_header)
+        header_row.addStretch(1)
+        self.status_pill = QtWidgets.QPushButton("ㅎㅇ")
+        self.status_pill.setObjectName("status-pill")
+        header_row.addWidget(self.status_pill)
         self.chat_view = ChatView()
         self.chat_input = ChatInputWidget()
         self.chat_input.send_message.connect(self._handle_send)
-        chat_panel.addWidget(chat_header)
+        chat_panel.addLayout(header_row)
         chat_panel.addWidget(self._build_top_controls())
+        thought_label = QtWidgets.QLabel("› Thought for 0.0 seconds")
+        thought_label.setObjectName("thought-label")
+        chat_panel.addWidget(thought_label)
         chat_panel.addWidget(self.chat_view, 1)
         chat_panel.addWidget(self.chat_input)
         layout.addWidget(self._build_sidebar())
@@ -176,6 +186,21 @@ class MainWindow(QtWidgets.QMainWindow):
         brand.setObjectName("sidebar-brand")
         layout.addWidget(brand)
 
+        sections = QtWidgets.QVBoxLayout()
+        sections.setSpacing(8)
+        today_label = QtWidgets.QLabel("Today")
+        today_label.setObjectName("sidebar-section")
+        sections.addWidget(today_label)
+        today_chip = QtWidgets.QPushButton("ㅎㅇ")
+        today_chip.setObjectName("sidebar-chip")
+        sections.addWidget(today_chip)
+        older_label = QtWidgets.QLabel("Older")
+        older_label.setObjectName("sidebar-section")
+        sections.addWidget(older_label)
+        older_chip = QtWidgets.QPushButton("hi")
+        older_chip.setObjectName("sidebar-chip")
+        sections.addWidget(older_chip)
+
         new_chat_button = QtWidgets.QPushButton("New Chat")
         new_chat_button.setObjectName("sidebar-button")
         new_chat_button.clicked.connect(self._reset_session)
@@ -184,6 +209,7 @@ class MainWindow(QtWidgets.QMainWindow):
         settings_button.clicked.connect(self._open_settings)
         layout.addWidget(new_chat_button)
         layout.addWidget(settings_button)
+        layout.addLayout(sections)
 
         layout.addStretch(1)
         return sidebar
@@ -439,14 +465,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setProperty("theme", "dark")
         self.setStyleSheet(
             """
-            QMainWindow { background: #141414; color: #e6e6e6; font-family: 'Segoe UI'; }
+            QMainWindow { background: #151515; color: #e6e6e6; font-family: 'Segoe UI'; }
             QLabel { color: #e6e6e6; }
-            QLabel#chat-header { font-size: 16px; font-weight: 600; padding: 8px 12px; }
+            QLabel#chat-header { font-size: 16px; font-weight: 600; }
+            QLabel#thought-label { color: #bfbfbf; padding: 0 12px 6px 12px; }
             QScrollArea { border: none; }
-            QWidget#sidebar { background: #101010; border-right: 1px solid #1f1f1f; }
-            QLabel#sidebar-brand { font-size: 18px; font-weight: 700; padding: 8px 0; }
+            QWidget#sidebar { background: #111111; border-right: 1px solid #1f1f1f; }
+            QLabel#sidebar-brand { font-size: 18px; font-weight: 700; padding: 6px 0 8px 0; }
+            QLabel#sidebar-section { color: #9c9c9c; padding-top: 8px; }
             QPushButton#sidebar-button { background: transparent; color: #e6e6e6; text-align: left; padding: 8px 12px; border-radius: 8px; }
             QPushButton#sidebar-button:hover { background: #1f1f1f; }
+            QPushButton#sidebar-chip { background: #222222; color: #e6e6e6; text-align: left; padding: 8px 12px; border-radius: 12px; }
             QWidget#top-controls { background: #1a1a1a; border-radius: 10px; }
             QFrame#bubble { background: #232323; border-radius: 10px; }
             QFrame#bubble[role="user"] { background: #2b2b2b; }
@@ -456,14 +485,16 @@ class MainWindow(QtWidgets.QMainWindow):
             QLabel#bubble-header-agent { color: #c586c0; font-weight: 600; }
             QLabel#bubble-header-info { color: #4fc1ff; font-weight: 600; }
             QLabel#bubble-header-error { color: #f44747; font-weight: 600; }
+            QFrame#input-container { background: #1c1c1c; border-radius: 20px; }
             QPlainTextEdit { background: #1b1b1b; color: #e6e6e6; border: 1px solid #2a2a2a; border-radius: 14px; padding: 12px; }
-            QTextEdit#chat-input { background: #1b1b1b; color: #e6e6e6; border: 1px solid #2a2a2a; border-radius: 18px; padding: 12px; }
+            QTextEdit#chat-input { background: transparent; color: #e6e6e6; border: none; }
             QPushButton { background: #2a2a2a; color: #e6e6e6; border-radius: 10px; padding: 6px 12px; }
             QPushButton:hover { background: #303030; }
             QPushButton#pill-button { background: #262626; border-radius: 12px; padding: 6px 12px; }
             QPushButton#chat-pill { background: #2a2a2a; border-radius: 16px; padding: 6px 10px; min-width: 28px; }
             QPushButton#chat-model { background: #2a2a2a; border-radius: 16px; padding: 6px 12px; }
-            QPushButton#chat-send { background: #ffffff; color: #141414; border-radius: 18px; min-width: 36px; min-height: 36px; }
+            QPushButton#chat-send { background: #3a3a3a; color: #e6e6e6; border-radius: 18px; min-width: 36px; min-height: 36px; }
+            QPushButton#status-pill { background: #2a2a2a; border-radius: 16px; padding: 6px 14px; }
             QComboBox { background: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 10px; padding: 6px 10px; }
             QCheckBox { padding: 4px 8px; }
             """
