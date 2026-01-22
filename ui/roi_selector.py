@@ -13,6 +13,7 @@ class RoiSelector(QtWidgets.QWidget):
         self.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, False)
         self.setAttribute(QtCore.Qt.WA_NoSystemBackground, True)
         self.setAttribute(QtCore.Qt.WA_TranslucentBackground, True)
+        self.setCursor(QtCore.Qt.CrossCursor)
         self.origin = QtCore.QPoint()
         self.current = QtCore.QPoint()
         self.dragging = False
@@ -46,6 +47,7 @@ class RoiSelector(QtWidgets.QWidget):
             self.origin = event.position().toPoint()
             self.current = self.origin
             self.dragging = True
+            self.grabMouse()
             self.update()
 
     def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
@@ -56,6 +58,7 @@ class RoiSelector(QtWidgets.QWidget):
     def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
         if self.dragging:
             self.dragging = False
+            self.releaseMouse()
             self._roi_rect = QtCore.QRect(self.origin, self.current).normalized()
             roi = self.current_roi()
             if roi and roi["width"] > 2 and roi["height"] > 2:
