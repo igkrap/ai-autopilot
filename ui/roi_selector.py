@@ -64,7 +64,7 @@ class RoiSelector(QtWidgets.QWidget):
 
     def paintEvent(self, event: QtGui.QPaintEvent) -> None:
         painter = QtGui.QPainter(self)
-        painter.fillRect(self.rect(), QtGui.QColor(0, 0, 0, 80))
+        painter.fillRect(self.rect(), QtGui.QColor(0, 0, 0, 30))
         if self.dragging:
             rect = QtCore.QRect(self.origin, self.current).normalized()
             painter.setPen(QtGui.QPen(QtGui.QColor(220, 60, 60), 2))
