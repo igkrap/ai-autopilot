@@ -116,7 +116,8 @@ class ChatInputWidget(QtWidgets.QWidget):
     def eventFilter(self, obj: QtCore.QObject, event: QtCore.QEvent) -> bool:
         if obj is self.text_edit and event.type() == QtCore.QEvent.KeyPress:
             key_event = event
-            if key_event.key() == QtCore.Qt.Key_Return and not key_event.modifiers():
+            is_enter = key_event.key() in (QtCore.Qt.Key_Return, QtCore.Qt.Key_Enter)
+            if is_enter and not (key_event.modifiers() & QtCore.Qt.ShiftModifier):
                 self._emit_message()
                 return True
         return super().eventFilter(obj, event)

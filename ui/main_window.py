@@ -9,6 +9,7 @@ from PySide6 import QtCore, QtWidgets
 
 from core.agent_loop import AgentLoop, AgentRunResult, PlanResult
 from core.capture import ScreenCapture
+from core.executor import ExecutionResult
 from core.models.base import ProviderConfig
 from core.models.ollama import OllamaProvider
 from core.models.openai_compat import OpenAICompatProvider
@@ -42,13 +43,16 @@ class PlanWorker(QtCore.QObject):
 
     @QtCore.Slot()
     def run(self) -> None:
-        result = self.agent_loop.plan_actions(
-            session_id=self.session_id,
-            user_message=self.user_message,
-            capture_mode=self.capture_mode,
-            monitor_index=self.monitor_index,
-            roi_bounds=self.roi_bounds,
-        )
+        try:
+            result = self.agent_loop.plan_actions(
+                session_id=self.session_id,
+                user_message=self.user_message,
+                capture_mode=self.capture_mode,
+                monitor_index=self.monitor_index,
+                roi_bounds=self.roi_bounds,
+            )
+        except Exception as exc:  # noqa: BLE001
+            result = PlanResult([], None, None, f"요청 처리 중 오류: {exc}")
         self.finished.emit(result)
 
 
@@ -74,15 +78,18 @@ class ExecuteWorker(QtCore.QObject):
 
     @QtCore.Slot()
     def run(self) -> None:
-        result = self.agent_loop.execute_actions(
-            session_id=self.session_id,
-            actions=self.plan.actions,
-            capture_mode=self.capture_mode,
-            monitor_index=self.monitor_index,
-            roi_bounds=self.roi_bounds,
-            bounds=self.plan.bounds,
-            before_path=self.plan.before_path,
-        )
+        try:
+            result = self.agent_loop.execute_actions(
+                session_id=self.session_id,
+                actions=self.plan.actions,
+                capture_mode=self.capture_mode,
+                monitor_index=self.monitor_index,
+                roi_bounds=self.roi_bounds,
+                bounds=self.plan.bounds,
+                before_path=self.plan.before_path,
+            )
+        except Exception as exc:  # noqa: BLE001
+            result = AgentRunResult([], ExecutionResult([], []), None, None, f"실행 중 오류: {exc}", None)
         self.finished.emit(result)
 
 
