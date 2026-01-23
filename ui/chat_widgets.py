@@ -152,6 +152,7 @@ class ChatView(QtWidgets.QScrollArea):
             row_layout.addWidget(bubble, 0)
             row_layout.addStretch(1)
         self.layout.insertWidget(self.layout.count() - 1, row)
+        self._scroll_to_bottom()
         QtCore.QTimer.singleShot(0, self._scroll_to_bottom)
 
     def clear_messages(self) -> None:
