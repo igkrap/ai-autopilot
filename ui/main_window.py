@@ -303,6 +303,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.storage.add_message(self.current_session_id, "user", message, None)
         self.chat_view.add_message("user", MessageBubble("user", message, None))
         self._set_thinking(True)
+        self._append_info("요청 처리 중...")
         self.last_user_message = message
         safety = self._build_safety()
         if safety.should_block(message):
@@ -345,11 +346,12 @@ class MainWindow(QtWidgets.QMainWindow):
         worker.deleteLater()
         if result.error:
             self._append_error(result.error)
+            self._append_info("요청 처리 실패.")
             self._set_thinking(False)
             return
         preview = ActionsPreviewDialog(result.actions, self)
         preview.confirmed.connect(lambda: self._run_execute_worker(result))
-        preview.rejected.connect(lambda: self._set_thinking(False))
+        preview.rejected.connect(self._handle_preview_rejected)
         preview.exec()
 
     def _run_execute_worker(self, plan: PlanResult) -> None:
@@ -378,6 +380,7 @@ class MainWindow(QtWidgets.QMainWindow):
         worker.deleteLater()
         if result.error:
             self._append_error(result.error)
+            self._append_info("요청 처리 실패.")
             self._set_thinking(False)
             return
         response = {
@@ -388,6 +391,7 @@ class MainWindow(QtWidgets.QMainWindow):
         response_text = json.dumps(response, ensure_ascii=False, indent=2)
         self.storage.add_message(self.current_session_id, "agent", response_text, result.after_path)
         self.chat_view.add_message("agent", MessageBubble("agent", response_text, result.after_path))
+        self._append_info("요청 완료.")
         self._set_thinking(False)
         if self.loop_running:
             self.loop_remaining -= 1
@@ -405,6 +409,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def _set_thinking(self, active: bool) -> None:
         if self.thinking_label:
             self.thinking_label.setVisible(active)
+
+    def _handle_preview_rejected(self) -> None:
+        self._append_info("사용자가 실행을 취소했습니다.")
+        self._set_thinking(False)
 
     def _confirm_risky(self) -> bool:
         first = QtWidgets.QMessageBox.question(self, "Confirm", "위험 작업이 감지되었습니다. 계속할까요?")
