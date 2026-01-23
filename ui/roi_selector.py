@@ -17,6 +17,7 @@ class RoiSelector(QtWidgets.QWidget):
         self.origin = QtCore.QPoint()
         self.current = QtCore.QPoint()
         self.dragging = False
+        self.has_moved = False
         self._roi_rect: QtCore.QRect | None = None
 
     def set_roi(self, roi: dict[str, int] | None) -> None:
@@ -47,26 +48,32 @@ class RoiSelector(QtWidgets.QWidget):
             self.origin = event.position().toPoint()
             self.current = self.origin
             self.dragging = True
+            self.has_moved = False
             self.grabMouse()
             self.update()
 
     def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
         if self.dragging:
             self.current = event.position().toPoint()
-            self.update()
+            delta = self.current - self.origin
+            if not self.has_moved and (abs(delta.x()) > 4 or abs(delta.y()) > 4):
+                self.has_moved = True
+            if self.has_moved:
+                self.update()
 
     def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
         if self.dragging:
             self.dragging = False
             self.releaseMouse()
-            self._roi_rect = QtCore.QRect(self.origin, self.current).normalized()
-            roi = self.current_roi()
-            if roi and roi["width"] > 2 and roi["height"] > 2:
-                self.roi_selected.emit(roi)
-                self.close()
-            else:
-                self._roi_rect = None
-                self.update()
+            if self.has_moved:
+                self._roi_rect = QtCore.QRect(self.origin, self.current).normalized()
+                roi = self.current_roi()
+                if roi and roi["width"] > 6 and roi["height"] > 6:
+                    self.roi_selected.emit(roi)
+                    self.close()
+                    return
+            self._roi_rect = None
+            self.update()
 
     def paintEvent(self, event: QtGui.QPaintEvent) -> None:
         painter = QtGui.QPainter(self)
