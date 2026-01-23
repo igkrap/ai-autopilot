@@ -411,9 +411,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self._append_info("루프 실행이 중지되었습니다.")
 
     def _select_roi(self) -> None:
-        selector = RoiSelector()
-        selector.roi_selected.connect(self._set_roi)
-        selector.show()
+        if self.roi_overlay and self.roi_overlay.isVisible():
+            return
+        self.roi_overlay = RoiSelector()
+        self.roi_overlay.roi_selected.connect(self._handle_roi_selected)
+        self.roi_overlay.showFullScreen()
+
+    def _handle_roi_selected(self, roi: dict[str, int]) -> None:
+        self._set_roi(roi)
+        if self.roi_overlay:
+            self.roi_overlay.close()
+            self.roi_overlay.deleteLater()
+            self.roi_overlay = None
 
     def _set_roi(self, roi: dict[str, int]) -> None:
         self.roi_bounds = roi
