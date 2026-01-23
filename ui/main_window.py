@@ -130,6 +130,7 @@ class MainWindow(QtWidgets.QMainWindow):
         }
         self.current_session_id = self._ensure_session()
         self.roi_bounds: dict[str, int] | None = None
+        self.roi_overlay: RoiSelector | None = None
         self.capture_mode = "active"
         self.monitor_index = 0
         self.loop_running = False
