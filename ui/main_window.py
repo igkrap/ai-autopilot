@@ -337,13 +337,16 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
-        worker.finished.connect(lambda result: self._handle_plan_result(result, thread, worker))
+        worker.finished.connect(
+            lambda result: self._handle_plan_result(result, thread),
+            QtCore.Qt.QueuedConnection,
+        )
+        thread.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
         thread.start()
 
-    def _handle_plan_result(self, result: PlanResult, thread: QtCore.QThread, worker: PlanWorker) -> None:
+    def _handle_plan_result(self, result: PlanResult, thread: QtCore.QThread) -> None:
         thread.quit()
-        thread.wait()
-        worker.deleteLater()
         if result.error:
             self._append_error(result.error)
             self._append_info("요청 처리 실패.")
@@ -371,13 +374,16 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
-        worker.finished.connect(lambda result: self._handle_execute_result(result, thread, worker))
+        worker.finished.connect(
+            lambda result: self._handle_execute_result(result, thread),
+            QtCore.Qt.QueuedConnection,
+        )
+        thread.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
         thread.start()
 
-    def _handle_execute_result(self, result: AgentRunResult, thread: QtCore.QThread, worker: ExecuteWorker) -> None:
+    def _handle_execute_result(self, result: AgentRunResult, thread: QtCore.QThread) -> None:
         thread.quit()
-        thread.wait()
-        worker.deleteLater()
         if result.error:
             self._append_error(result.error)
             self._append_info("요청 처리 실패.")
