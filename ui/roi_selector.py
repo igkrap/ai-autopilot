@@ -19,6 +19,13 @@ class RoiSelector(QtWidgets.QWidget):
         self.dragging = False
         self.has_moved = False
         self._roi_rect: QtCore.QRect | None = None
+        self._background: QtGui.QPixmap | None = None
+
+    def showEvent(self, event: QtGui.QShowEvent) -> None:
+        screen = QtGui.QGuiApplication.primaryScreen()
+        if screen:
+            self._background = screen.grabWindow(0)
+        super().showEvent(event)
 
     def set_roi(self, roi: dict[str, int] | None) -> None:
         if roi:
@@ -77,6 +84,8 @@ class RoiSelector(QtWidgets.QWidget):
 
     def paintEvent(self, event: QtGui.QPaintEvent) -> None:
         painter = QtGui.QPainter(self)
+        if self._background and not self._background.isNull():
+            painter.drawPixmap(0, 0, self._background)
         if self.dragging:
             rect = QtCore.QRect(self.origin, self.current).normalized()
             painter.setPen(QtGui.QPen(QtGui.QColor(220, 60, 60), 2))
