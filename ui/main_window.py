@@ -136,6 +136,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.loop_running = False
         self.loop_remaining = 0
         self.last_user_message = ""
+        self.thinking_label: QtWidgets.QLabel | None = None
         self._build_ui()
         self._load_messages(self.current_session_id)
         self._load_settings(self.current_session_id)
@@ -158,6 +159,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.chat_input.model_button.clicked.connect(self._open_settings)
         chat_panel.addLayout(header_row)
         chat_panel.addWidget(self._build_top_controls())
+        self.thinking_label = QtWidgets.QLabel("Thinking…")
+        self.thinking_label.setObjectName("thinking-label")
+        self.thinking_label.setVisible(False)
+        chat_panel.addWidget(self.thinking_label)
         chat_panel.addWidget(self.chat_view, 1)
         chat_panel.addWidget(self.chat_input)
         layout.addWidget(self._build_sidebar())
@@ -297,14 +302,17 @@ class MainWindow(QtWidgets.QMainWindow):
     def _handle_send(self, message: str) -> None:
         self.storage.add_message(self.current_session_id, "user", message, None)
         self.chat_view.add_message("user", MessageBubble("user", message, None))
+        self._set_thinking(True)
         self.last_user_message = message
         safety = self._build_safety()
         if safety.should_block(message):
             self._append_error("위험 키워드가 감지되어 차단되었습니다.")
+            self._set_thinking(False)
             return
         if safety.requires_confirmation(message):
             if not self._confirm_risky():
                 self._append_info("사용자가 위험 액션 실행을 취소했습니다.")
+                self._set_thinking(False)
                 return
         if self.loop_checkbox.isChecked():
             self.loop_running = True
@@ -337,9 +345,11 @@ class MainWindow(QtWidgets.QMainWindow):
         worker.deleteLater()
         if result.error:
             self._append_error(result.error)
+            self._set_thinking(False)
             return
         preview = ActionsPreviewDialog(result.actions, self)
         preview.confirmed.connect(lambda: self._run_execute_worker(result))
+        preview.rejected.connect(lambda: self._set_thinking(False))
         preview.exec()
 
     def _run_execute_worker(self, plan: PlanResult) -> None:
@@ -368,6 +378,7 @@ class MainWindow(QtWidgets.QMainWindow):
         worker.deleteLater()
         if result.error:
             self._append_error(result.error)
+            self._set_thinking(False)
             return
         response = {
             "executed": result.execution.executed,
@@ -377,6 +388,7 @@ class MainWindow(QtWidgets.QMainWindow):
         response_text = json.dumps(response, ensure_ascii=False, indent=2)
         self.storage.add_message(self.current_session_id, "agent", response_text, result.after_path)
         self.chat_view.add_message("agent", MessageBubble("agent", response_text, result.after_path))
+        self._set_thinking(False)
         if self.loop_running:
             self.loop_remaining -= 1
             if self.loop_remaining > 0:
@@ -389,6 +401,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _append_error(self, text: str) -> None:
         self.chat_view.add_message("error", MessageBubble("error", text, None))
+
+    def _set_thinking(self, active: bool) -> None:
+        if self.thinking_label:
+            self.thinking_label.setVisible(active)
 
     def _confirm_risky(self) -> bool:
         first = QtWidgets.QMessageBox.question(self, "Confirm", "위험 작업이 감지되었습니다. 계속할까요?")
@@ -461,6 +477,7 @@ class MainWindow(QtWidgets.QMainWindow):
             QLabel#bubble-header-agent { color: #c586c0; font-weight: 600; }
             QLabel#bubble-header-info { color: #4fc1ff; font-weight: 600; }
             QLabel#bubble-header-error { color: #f44747; font-weight: 600; }
+            QLabel#thinking-label { color: #bfbfbf; padding: 4px 12px; }
             QFrame#input-container { background: #1c1c1c; border-radius: 20px; }
             QPlainTextEdit { background: #1b1b1b; color: #e6e6e6; border: 1px solid #2a2a2a; border-radius: 14px; padding: 12px; }
             QTextEdit#chat-input { background: transparent; color: #e6e6e6; border: none; }
