@@ -17,12 +17,13 @@ class CaptureResult:
 
 class ScreenCapture:
     def __init__(self) -> None:
-        self._mss = mss()
+        self._mss = None
 
     def capture_monitor(self, monitor_index: int, dest: Path) -> CaptureResult:
-        monitors = self._mss.monitors
-        monitor = monitors[min(monitor_index, len(monitors) - 1)]
-        image = self._mss.grab(monitor)
+        with mss() as sct:
+            monitors = sct.monitors
+            monitor = monitors[min(monitor_index, len(monitors) - 1)]
+            image = sct.grab(monitor)
         dest.parent.mkdir(parents=True, exist_ok=True)
         Image.frombytes("RGB", image.size, image.rgb).save(dest)
         bounds = {
@@ -34,14 +35,16 @@ class ScreenCapture:
         return CaptureResult(dest, bounds)
 
     def capture_roi(self, roi: dict[str, int], dest: Path) -> CaptureResult:
-        image = self._mss.grab(roi)
+        with mss() as sct:
+            image = sct.grab(roi)
         dest.parent.mkdir(parents=True, exist_ok=True)
         Image.frombytes("RGB", image.size, image.rgb).save(dest)
         return CaptureResult(dest, roi)
 
     def capture_active_window(self, dest: Path) -> CaptureResult:
-        monitor = self._mss.monitors[0]
-        image = self._mss.grab(monitor)
+        with mss() as sct:
+            monitor = sct.monitors[0]
+            image = sct.grab(monitor)
         dest.parent.mkdir(parents=True, exist_ok=True)
         Image.frombytes("RGB", image.size, image.rgb).save(dest)
         bounds = {
@@ -73,14 +76,15 @@ class ScreenCapture:
 
     def describe_available_monitors(self) -> list[dict[str, Any]]:
         monitors = []
-        for idx, monitor in enumerate(self._mss.monitors):
-            monitors.append(
-                {
-                    "index": idx,
-                    "left": monitor["left"],
-                    "top": monitor["top"],
-                    "width": monitor["width"],
-                    "height": monitor["height"],
-                }
-            )
+        with mss() as sct:
+            for idx, monitor in enumerate(sct.monitors):
+                monitors.append(
+                    {
+                        "index": idx,
+                        "left": monitor["left"],
+                        "top": monitor["top"],
+                        "width": monitor["width"],
+                        "height": monitor["height"],
+                    }
+                )
         return monitors
