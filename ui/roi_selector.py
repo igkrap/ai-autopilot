@@ -20,12 +20,26 @@ class RoiSelector(QtWidgets.QWidget):
         self.has_moved = False
         self._roi_rect: QtCore.QRect | None = None
         self._background: QtGui.QPixmap | None = None
+        self._refresh_timer = QtCore.QTimer(self)
+        self._refresh_timer.setInterval(120)
+        self._refresh_timer.timeout.connect(self._refresh_background)
 
     def showEvent(self, event: QtGui.QShowEvent) -> None:
+        self._refresh_background()
+        self._refresh_timer.start()
+        super().showEvent(event)
+
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        if self._refresh_timer.isActive():
+            self._refresh_timer.stop()
+        super().closeEvent(event)
+
+    def _refresh_background(self) -> None:
         screen = QtGui.QGuiApplication.primaryScreen()
         if screen:
             self._background = screen.grabWindow(0)
-        super().showEvent(event)
+            if not self.dragging:
+                self.update()
 
     def set_roi(self, roi: dict[str, int] | None) -> None:
         if roi:
