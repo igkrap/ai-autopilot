@@ -97,6 +97,7 @@ class AgentLoop:
         executor = ActionExecutor(
             roi_limit,
             require_focus_for_type=self.safety.settings.require_focus_for_type,
+            focus_timeout_seconds=self.safety.settings.focus_timeout_seconds,
         )
         execution = executor.execute(actions, self.safety.settings.max_actions)
         after_path = None

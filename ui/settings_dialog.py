@@ -36,6 +36,9 @@ class SettingsDialog(QtWidgets.QDialog):
         self.block_risky = QtWidgets.QCheckBox("위험 액션 자동 차단")
         self.allow_outside_roi = QtWidgets.QCheckBox("ROI 밖 실행 허용")
         self.require_focus = QtWidgets.QCheckBox("최근 포커스 없으면 type 차단")
+        self.focus_timeout = QtWidgets.QDoubleSpinBox()
+        self.focus_timeout.setRange(0.5, 30.0)
+        self.focus_timeout.setSingleStep(0.5)
         self.max_actions = QtWidgets.QSpinBox()
         self.max_actions.setRange(1, 50)
         self.max_iters = QtWidgets.QSpinBox()
@@ -44,6 +47,7 @@ class SettingsDialog(QtWidgets.QDialog):
         form.addRow(self.block_risky)
         form.addRow(self.allow_outside_roi)
         form.addRow(self.require_focus)
+        form.addRow("포커스 유지 시간(초)", self.focus_timeout)
         form.addRow("최대 액션 수", self.max_actions)
         form.addRow("최대 반복 수", self.max_iters)
 
@@ -68,6 +72,7 @@ class SettingsDialog(QtWidgets.QDialog):
         self.block_risky.setChecked(self.settings.get("block_risky", False))
         self.allow_outside_roi.setChecked(self.settings.get("allow_outside_roi", False))
         self.require_focus.setChecked(self.settings.get("require_focus", True))
+        self.focus_timeout.setValue(float(self.settings.get("focus_timeout", 5.0)))
         self.max_actions.setValue(int(self.settings.get("max_actions", 10)))
         self.max_iters.setValue(int(self.settings.get("max_iters", 3)))
 
@@ -84,6 +89,7 @@ class SettingsDialog(QtWidgets.QDialog):
                 "block_risky": self.block_risky.isChecked(),
                 "allow_outside_roi": self.allow_outside_roi.isChecked(),
                 "require_focus": self.require_focus.isChecked(),
+                "focus_timeout": self.focus_timeout.value(),
                 "max_actions": self.max_actions.value(),
                 "max_iters": self.max_iters.value(),
             }

@@ -20,9 +20,11 @@ class ActionExecutor:
         self,
         roi_bounds: dict[str, int] | None = None,
         require_focus_for_type: bool = True,
+        focus_timeout_seconds: float = 2.0,
     ) -> None:
         self.roi_bounds = roi_bounds
         self.require_focus_for_type = require_focus_for_type
+        self.focus_timeout_seconds = focus_timeout_seconds
         self.last_focus_time = 0.0
         self.last_focus_position: tuple[int, int] | None = None
 
@@ -62,8 +64,14 @@ class ActionExecutor:
                 ms = int(action.get("ms", 0))
                 time.sleep(max(ms, 0) / 1000)
             elif action.get("action") == "scroll":
-                pyautogui.scroll(int(action.get("dy", 0)), x=int(action.get("x", 0)), y=int(action.get("y", 0)))
+                x = action.get("x")
+                y = action.get("y")
+                if x is None or y is None:
+                    pyautogui.scroll(int(action.get("dy", 0)))
+                else:
+                    pyautogui.scroll(int(action.get("dy", 0)), x=int(x), y=int(y))
                 pyautogui.hscroll(int(action.get("dx", 0)))
+                self._update_focus_for_action(action)
             else:
                 blocked.append({**action, "reason": "unsupported_action"})
                 continue
@@ -88,5 +96,14 @@ class ActionExecutor:
         self.last_focus_time = time.time()
         self.last_focus_position = (x, y)
 
+    def _update_focus_for_action(self, action: dict[str, Any]) -> None:
+        x = action.get("x")
+        y = action.get("y")
+        if x is None or y is None:
+            position = pyautogui.position()
+            self._update_focus(int(position.x), int(position.y))
+        else:
+            self._update_focus(int(x), int(y))
+
     def _recent_focus(self) -> bool:
-        return (time.time() - self.last_focus_time) <= 2.0
+        return (time.time() - self.last_focus_time) <= self.focus_timeout_seconds

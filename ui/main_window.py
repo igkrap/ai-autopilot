@@ -139,6 +139,7 @@ class MainWindow(QtWidgets.QMainWindow):
             "block_risky": False,
             "allow_outside_roi": False,
             "require_focus": False,
+            "focus_timeout": 5.0,
             "max_actions": 10,
             "max_iters": 3,
         }
@@ -157,6 +158,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.thread_pool = QtCore.QThreadPool.globalInstance()
         self.thread_pool.setMaxThreadCount(1)
         self.busy = False
+        self.refresh_timer = QtCore.QTimer(self)
+        self.refresh_timer.setInterval(250)
+        self.refresh_timer.timeout.connect(self._scroll_to_bottom)
         self._build_ui()
         self._load_messages(self.current_session_id)
         self._load_settings(self.current_session_id)
@@ -193,6 +197,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.setCentralWidget(container)
         self._apply_theme()
+        self.refresh_timer.start()
 
     def _build_sidebar(self) -> QtWidgets.QWidget:
         sidebar = QtWidgets.QWidget()
@@ -316,6 +321,7 @@ class MainWindow(QtWidgets.QMainWindow):
             max_actions=int(self.settings.get("max_actions", 10)),
             allow_outside_roi=bool(self.settings.get("allow_outside_roi", False)),
             require_focus_for_type=bool(self.settings.get("require_focus", True)),
+            focus_timeout_seconds=float(self.settings.get("focus_timeout", 5.0)),
         )
         return SafetyChecker(safety_settings)
 
@@ -443,9 +449,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _append_info(self, text: str) -> None:
         self.chat_view.add_message("agent", MessageBubble("agent", f"안내: {text}", None))
+        self._scroll_to_bottom()
 
     def _append_error(self, text: str) -> None:
         self.chat_view.add_message("error", MessageBubble("error", text, None))
+        self._scroll_to_bottom()
 
     def _set_thinking(self, active: bool) -> None:
         if self.thinking_label:
@@ -490,6 +498,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.roi_overlay.close()
             self.roi_overlay.deleteLater()
             self.roi_overlay = None
+
+    def _scroll_to_bottom(self) -> None:
+        self.chat_view.verticalScrollBar().setValue(self.chat_view.verticalScrollBar().maximum())
 
     def _set_roi(self, roi: dict[str, int]) -> None:
         self.roi_bounds = roi

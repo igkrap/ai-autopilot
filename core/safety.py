@@ -13,6 +13,7 @@ class SafetySettings:
     max_actions: int = 10
     allow_outside_roi: bool = False
     require_focus_for_type: bool = True
+    focus_timeout_seconds: float = 5.0
 
 
 class SafetyChecker:
