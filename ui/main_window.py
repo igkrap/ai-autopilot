@@ -359,9 +359,18 @@ class MainWindow(QtWidgets.QMainWindow):
             self._append_info("요청 처리 실패.")
             self._set_thinking(False)
             return
+        if not result.actions:
+            self._append_error("모델이 실행할 액션을 반환하지 않았습니다.")
+            self._append_info("요청 처리 실패.")
+            self._set_thinking(False)
+            return
         preview = ActionsPreviewDialog(result.actions, self)
+        preview.setWindowModality(QtCore.Qt.ApplicationModal)
         preview.confirmed.connect(lambda: self._run_execute_worker(result))
         preview.rejected.connect(self._handle_preview_rejected)
+        self._append_info("액션 미리보기 창을 확인해 주세요.")
+        preview.raise_()
+        preview.activateWindow()
         preview.exec()
 
     def _run_execute_worker(self, plan: PlanResult) -> None:
