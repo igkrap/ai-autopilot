@@ -1,0 +1,110 @@
+from __future__ import annotations
+
+from PySide6 import QtCore, QtGui, QtWidgets
+
+
+class RoiSelector(QtWidgets.QWidget):
+    roi_selected = QtCore.Signal(dict)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.FramelessWindowHint)
+        self.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, False)
+        self.setAttribute(QtCore.Qt.WA_NoSystemBackground, True)
+        self.setAttribute(QtCore.Qt.WA_TranslucentBackground, True)
+        self.setCursor(QtCore.Qt.CrossCursor)
+        self.origin = QtCore.QPoint()
+        self.current = QtCore.QPoint()
+        self.dragging = False
+        self.has_moved = False
+        self._roi_rect: QtCore.QRect | None = None
+        self._background: QtGui.QPixmap | None = None
+        self._offset = QtCore.QPoint()
+
+    def showEvent(self, event: QtGui.QShowEvent) -> None:
+        screens = QtGui.QGuiApplication.screens()
+        if screens:
+            virtual_rect = screens[0].geometry()
+            for screen in screens[1:]:
+                virtual_rect = virtual_rect.united(screen.geometry())
+            self.setGeometry(virtual_rect)
+            self._offset = QtCore.QPoint(virtual_rect.left(), virtual_rect.top())
+        self._refresh_background()
+        super().showEvent(event)
+
+    def _refresh_background(self) -> None:
+        screen = QtGui.QGuiApplication.primaryScreen()
+        if screen:
+            rect = self.geometry()
+            self._background = screen.grabWindow(
+                0, rect.left(), rect.top(), rect.width(), rect.height()
+            )
+            if not self.dragging:
+                self.update()
+
+    def set_roi(self, roi: dict[str, int] | None) -> None:
+        if roi:
+            self._roi_rect = QtCore.QRect(
+                roi["left"],
+                roi["top"],
+                roi["width"],
+                roi["height"],
+            )
+        else:
+            self._roi_rect = None
+        self.update()
+
+    def current_roi(self) -> dict[str, int] | None:
+        if not self._roi_rect:
+            return None
+        rect = self._roi_rect.normalized()
+        return {
+            "left": rect.left(),
+            "top": rect.top(),
+            "width": rect.width(),
+            "height": rect.height(),
+        }
+
+    def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
+        if event.button() == QtCore.Qt.LeftButton:
+            self.origin = event.globalPosition().toPoint()
+            self.current = self.origin
+            self.dragging = True
+            self.has_moved = False
+            self.grabMouse()
+            self.update()
+
+    def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
+        if self.dragging:
+            self.current = event.globalPosition().toPoint()
+            delta = self.current - self.origin
+            if not self.has_moved and (abs(delta.x()) > 4 or abs(delta.y()) > 4):
+                self.has_moved = True
+            if self.has_moved:
+                self.update()
+
+    def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
+        if self.dragging:
+            self.dragging = False
+            self.releaseMouse()
+            if self.has_moved:
+                self._roi_rect = QtCore.QRect(self.origin, self.current).normalized()
+                roi = self.current_roi()
+                if roi and roi["width"] > 6 and roi["height"] > 6:
+                    self.roi_selected.emit(roi)
+                    self.close()
+                    return
+            self._roi_rect = None
+            self.update()
+
+    def paintEvent(self, event: QtGui.QPaintEvent) -> None:
+        painter = QtGui.QPainter(self)
+        if self._background and not self._background.isNull():
+            painter.drawPixmap(0, 0, self._background)
+        if self.dragging:
+            rect = QtCore.QRect(self.origin - self._offset, self.current - self._offset).normalized()
+            painter.setPen(QtGui.QPen(QtGui.QColor(220, 60, 60), 2))
+            painter.drawRect(rect)
+        elif self._roi_rect:
+            painter.setPen(QtGui.QPen(QtGui.QColor(220, 60, 60), 2))
+            painter.drawRect((self._roi_rect.translated(-self._offset)).normalized())
