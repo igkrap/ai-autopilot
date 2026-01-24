@@ -309,6 +309,20 @@ class MainWindow(QtWidgets.QMainWindow):
     def _handle_send(self, message: str) -> None:
         self.storage.add_message(self.current_session_id, "user", message, None)
         self.chat_view.add_message("user", MessageBubble("user", message, None))
+        provider = self._build_provider()
+        if getattr(provider, "name", lambda: "")() == "stub":
+            self._set_thinking(True)
+            self._append_info("요청 처리 중...")
+            actions_text = provider.plan(message, None).get("text", "")
+            if actions_text:
+                self.storage.add_message(self.current_session_id, "agent", actions_text, None)
+                self.chat_view.add_message("agent", MessageBubble("agent", actions_text, None))
+                self._append_info("요청 완료.")
+            else:
+                self._append_error("모델 응답을 받지 못했습니다.")
+                self._append_info("요청 처리 실패.")
+            self._set_thinking(False)
+            return
         self._set_thinking(True)
         self._append_info("요청 처리 중...")
         self.last_user_message = message
