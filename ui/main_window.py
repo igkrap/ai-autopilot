@@ -21,9 +21,12 @@ from ui.roi_selector import RoiSelector
 from ui.settings_dialog import SettingsDialog
 
 
-class PlanWorker(QtCore.QObject):
-    finished = QtCore.Signal(PlanResult)
+class WorkerSignals(QtCore.QObject):
+    plan_finished = QtCore.Signal(PlanResult)
+    execute_finished = QtCore.Signal(AgentRunResult)
 
+
+class PlanTask(QtCore.QRunnable):
     def __init__(
         self,
         agent_loop: AgentLoop,
@@ -32,6 +35,7 @@ class PlanWorker(QtCore.QObject):
         capture_mode: str,
         monitor_index: int | None,
         roi_bounds: dict[str, int] | None,
+        signals: WorkerSignals,
     ) -> None:
         super().__init__()
         self.agent_loop = agent_loop
@@ -40,6 +44,7 @@ class PlanWorker(QtCore.QObject):
         self.capture_mode = capture_mode
         self.monitor_index = monitor_index
         self.roi_bounds = roi_bounds
+        self.signals = signals
 
     @QtCore.Slot()
     def run(self) -> None:
@@ -53,12 +58,10 @@ class PlanWorker(QtCore.QObject):
             )
         except Exception as exc:  # noqa: BLE001
             result = PlanResult([], None, None, f"요청 처리 중 오류: {exc}")
-        self.finished.emit(result)
+        self.signals.plan_finished.emit(result)
 
 
-class ExecuteWorker(QtCore.QObject):
-    finished = QtCore.Signal(AgentRunResult)
-
+class ExecuteTask(QtCore.QRunnable):
     def __init__(
         self,
         agent_loop: AgentLoop,
@@ -67,6 +70,7 @@ class ExecuteWorker(QtCore.QObject):
         capture_mode: str,
         monitor_index: int | None,
         roi_bounds: dict[str, int] | None,
+        signals: WorkerSignals,
     ) -> None:
         super().__init__()
         self.agent_loop = agent_loop
@@ -75,6 +79,7 @@ class ExecuteWorker(QtCore.QObject):
         self.capture_mode = capture_mode
         self.monitor_index = monitor_index
         self.roi_bounds = roi_bounds
+        self.signals = signals
 
     @QtCore.Slot()
     def run(self) -> None:
@@ -90,7 +95,7 @@ class ExecuteWorker(QtCore.QObject):
             )
         except Exception as exc:  # noqa: BLE001
             result = AgentRunResult([], ExecutionResult([], []), None, None, f"실행 중 오류: {exc}", None)
-        self.finished.emit(result)
+        self.signals.execute_finished.emit(result)
 
 
 class ActionsPreviewDialog(QtWidgets.QDialog):
@@ -144,6 +149,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.loop_remaining = 0
         self.last_user_message = ""
         self.thinking_label: QtWidgets.QLabel | None = None
+        self.worker_signals = WorkerSignals()
+        self.worker_signals.plan_finished.connect(self._handle_plan_result)
+        self.worker_signals.execute_finished.connect(self._handle_execute_result)
+        self.thread_pool = QtCore.QThreadPool.globalInstance()
+        self.thread_pool.setMaxThreadCount(1)
+        self.busy = False
         self._build_ui()
         self._load_messages(self.current_session_id)
         self._load_settings(self.current_session_id)
@@ -307,6 +318,9 @@ class MainWindow(QtWidgets.QMainWindow):
         return SafetyChecker(safety_settings)
 
     def _handle_send(self, message: str) -> None:
+        if self.busy:
+            self._append_info("처리 중입니다. 잠시 기다려 주세요.")
+            return
         self.storage.add_message(self.current_session_id, "user", message, None)
         self.chat_view.add_message("user", MessageBubble("user", message, None))
         provider = self._build_provider()
@@ -323,6 +337,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self._append_info("요청 처리 실패.")
             self._set_thinking(False)
             return
+        self.busy = True
         self._set_thinking(True)
         self._append_info("요청 처리 중...")
         self.last_user_message = message
@@ -330,11 +345,13 @@ class MainWindow(QtWidgets.QMainWindow):
         if safety.should_block(message):
             self._append_error("위험 키워드가 감지되어 차단되었습니다.")
             self._set_thinking(False)
+            self.busy = False
             return
         if safety.requires_confirmation(message):
             if not self._confirm_risky():
                 self._append_info("사용자가 위험 액션 실행을 취소했습니다.")
                 self._set_thinking(False)
+                self.busy = False
                 return
         if self.loop_checkbox.isChecked():
             self.loop_running = True
@@ -347,36 +364,29 @@ class MainWindow(QtWidgets.QMainWindow):
         log_writer = JsonLogWriter(self.session_files.logs_path(self.current_session_id) / "actions.jsonl")
         agent_loop = AgentLoop(self.capture, provider, safety, self.session_files, log_writer)
 
-        thread = QtCore.QThread(self)
-        worker = PlanWorker(
+        task = PlanTask(
             agent_loop,
             self.current_session_id,
             message,
             self.capture_mode,
             self.monitor_index,
             self.roi_bounds,
+            self.worker_signals,
         )
-        worker.moveToThread(thread)
-        thread.started.connect(worker.run)
-        worker.finished.connect(
-            lambda result: self._handle_plan_result(result, thread),
-            QtCore.Qt.QueuedConnection,
-        )
-        thread.finished.connect(worker.deleteLater)
-        thread.finished.connect(thread.deleteLater)
-        thread.start()
+        self.thread_pool.start(task)
 
-    def _handle_plan_result(self, result: PlanResult, thread: QtCore.QThread) -> None:
-        thread.quit()
+    def _handle_plan_result(self, result: PlanResult) -> None:
         if result.error:
             self._append_error(result.error)
             self._append_info("요청 처리 실패.")
             self._set_thinking(False)
+            self.busy = False
             return
         if not result.actions:
             self._append_error("모델이 실행할 액션을 반환하지 않았습니다.")
             self._append_info("요청 처리 실패.")
             self._set_thinking(False)
+            self.busy = False
             return
         preview = ActionsPreviewDialog(result.actions, self)
         preview.setWindowModality(QtCore.Qt.ApplicationModal)
@@ -393,31 +403,23 @@ class MainWindow(QtWidgets.QMainWindow):
         log_writer = JsonLogWriter(self.session_files.logs_path(self.current_session_id) / "actions.jsonl")
         agent_loop = AgentLoop(self.capture, provider, safety, self.session_files, log_writer)
 
-        thread = QtCore.QThread(self)
-        worker = ExecuteWorker(
+        task = ExecuteTask(
             agent_loop,
             self.current_session_id,
             plan,
             self.capture_mode,
             self.monitor_index,
             self.roi_bounds,
+            self.worker_signals,
         )
-        worker.moveToThread(thread)
-        thread.started.connect(worker.run)
-        worker.finished.connect(
-            lambda result: self._handle_execute_result(result, thread),
-            QtCore.Qt.QueuedConnection,
-        )
-        thread.finished.connect(worker.deleteLater)
-        thread.finished.connect(thread.deleteLater)
-        thread.start()
+        self.thread_pool.start(task)
 
-    def _handle_execute_result(self, result: AgentRunResult, thread: QtCore.QThread) -> None:
-        thread.quit()
+    def _handle_execute_result(self, result: AgentRunResult) -> None:
         if result.error:
             self._append_error(result.error)
             self._append_info("요청 처리 실패.")
             self._set_thinking(False)
+            self.busy = False
             return
         response = {
             "executed": result.execution.executed,
@@ -429,6 +431,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.chat_view.add_message("agent", MessageBubble("agent", response_text, result.after_path))
         self._append_info("요청 완료.")
         self._set_thinking(False)
+        self.busy = False
         if self.loop_running:
             self.loop_remaining -= 1
             if self.loop_remaining > 0:
@@ -449,6 +452,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _handle_preview_rejected(self) -> None:
         self._append_info("사용자가 실행을 취소했습니다.")
         self._set_thinking(False)
+        self.busy = False
 
     def _confirm_risky(self) -> bool:
         first = QtWidgets.QMessageBox.question(self, "Confirm", "위험 작업이 감지되었습니다. 계속할까요?")
