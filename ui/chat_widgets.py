@@ -39,7 +39,13 @@ class MessageBubble(QtWidgets.QFrame):
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(6)
-        header = QtWidgets.QLabel("You" if role == "user" else role.capitalize())
+        role_label = {
+            "user": "사용자",
+            "agent": "에이전트",
+            "info": "안내",
+            "error": "오류",
+        }.get(role, role.capitalize())
+        header = QtWidgets.QLabel(role_label)
         header.setObjectName(f"bubble-header-{role}")
         layout.addWidget(header)
         if content.strip().startswith("{"):
@@ -140,6 +146,7 @@ class ChatView(QtWidgets.QScrollArea):
         self.layout.addStretch()
         self.setWidget(self.container)
         self.setWidgetResizable(True)
+        self.verticalScrollBar().rangeChanged.connect(lambda _min, _max: self._scroll_to_bottom())
 
     def add_message(self, role: str, bubble: MessageBubble) -> None:
         row = QtWidgets.QWidget()

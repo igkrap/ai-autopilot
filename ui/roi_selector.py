@@ -9,7 +9,6 @@ class RoiSelector(QtWidgets.QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.FramelessWindowHint)
-        self.setWindowState(QtCore.Qt.WindowFullScreen)
         self.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, False)
         self.setAttribute(QtCore.Qt.WA_NoSystemBackground, True)
         self.setAttribute(QtCore.Qt.WA_TranslucentBackground, True)
@@ -20,15 +19,26 @@ class RoiSelector(QtWidgets.QWidget):
         self.has_moved = False
         self._roi_rect: QtCore.QRect | None = None
         self._background: QtGui.QPixmap | None = None
+        self._offset = QtCore.QPoint()
 
     def showEvent(self, event: QtGui.QShowEvent) -> None:
+        screens = QtGui.QGuiApplication.screens()
+        if screens:
+            virtual_rect = screens[0].geometry()
+            for screen in screens[1:]:
+                virtual_rect = virtual_rect.united(screen.geometry())
+            self.setGeometry(virtual_rect)
+            self._offset = QtCore.QPoint(virtual_rect.left(), virtual_rect.top())
         self._refresh_background()
         super().showEvent(event)
 
     def _refresh_background(self) -> None:
         screen = QtGui.QGuiApplication.primaryScreen()
         if screen:
-            self._background = screen.grabWindow(0)
+            rect = self.geometry()
+            self._background = screen.grabWindow(
+                0, rect.left(), rect.top(), rect.width(), rect.height()
+            )
             if not self.dragging:
                 self.update()
 
@@ -57,7 +67,7 @@ class RoiSelector(QtWidgets.QWidget):
 
     def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
         if event.button() == QtCore.Qt.LeftButton:
-            self.origin = event.position().toPoint()
+            self.origin = event.globalPosition().toPoint()
             self.current = self.origin
             self.dragging = True
             self.has_moved = False
@@ -66,7 +76,7 @@ class RoiSelector(QtWidgets.QWidget):
 
     def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
         if self.dragging:
-            self.current = event.position().toPoint()
+            self.current = event.globalPosition().toPoint()
             delta = self.current - self.origin
             if not self.has_moved and (abs(delta.x()) > 4 or abs(delta.y()) > 4):
                 self.has_moved = True
@@ -92,9 +102,9 @@ class RoiSelector(QtWidgets.QWidget):
         if self._background and not self._background.isNull():
             painter.drawPixmap(0, 0, self._background)
         if self.dragging:
-            rect = QtCore.QRect(self.origin, self.current).normalized()
+            rect = QtCore.QRect(self.origin - self._offset, self.current - self._offset).normalized()
             painter.setPen(QtGui.QPen(QtGui.QColor(220, 60, 60), 2))
             painter.drawRect(rect)
         elif self._roi_rect:
             painter.setPen(QtGui.QPen(QtGui.QColor(220, 60, 60), 2))
-            painter.drawRect(self._roi_rect.normalized())
+            painter.drawRect((self._roi_rect.translated(-self._offset)).normalized())

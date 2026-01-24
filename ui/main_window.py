@@ -138,7 +138,7 @@ class MainWindow(QtWidgets.QMainWindow):
             "require_confirmation": True,
             "block_risky": False,
             "allow_outside_roi": False,
-            "require_focus": True,
+            "require_focus": False,
             "max_actions": 10,
             "max_iters": 3,
         }
@@ -442,7 +442,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.loop_running = False
 
     def _append_info(self, text: str) -> None:
-        self.chat_view.add_message("info", MessageBubble("info", text, None))
+        self.chat_view.add_message("agent", MessageBubble("agent", f"안내: {text}", None))
 
     def _append_error(self, text: str) -> None:
         self.chat_view.add_message("error", MessageBubble("error", text, None))
