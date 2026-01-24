@@ -103,7 +103,7 @@ class ActionsPreviewDialog(QtWidgets.QDialog):
 
     def __init__(self, actions: list[dict[str, Any]], parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Actions Preview")
+        self.setWindowTitle("액션 미리보기")
         layout = QtWidgets.QVBoxLayout(self)
         text = QtWidgets.QPlainTextEdit()
         text.setReadOnly(True)
@@ -112,6 +112,8 @@ class ActionsPreviewDialog(QtWidgets.QDialog):
         buttons = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
         )
+        buttons.button(QtWidgets.QDialogButtonBox.Ok).setText("실행")
+        buttons.button(QtWidgets.QDialogButtonBox.Cancel).setText("취소")
         buttons.accepted.connect(self._confirm)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -124,7 +126,7 @@ class ActionsPreviewDialog(QtWidgets.QDialog):
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("VS Code Chat Agent MVP")
+        self.setWindowTitle("AI AutoPilot")
         self.resize(1200, 780)
         self.storage = Storage(Path("sessions") / "app.db")
         self.session_files = SessionFileManager(Path("sessions"))
@@ -167,7 +169,7 @@ class MainWindow(QtWidgets.QMainWindow):
         chat_panel = QtWidgets.QVBoxLayout()
         header_row = QtWidgets.QHBoxLayout()
         header_row.setContentsMargins(12, 8, 12, 0)
-        chat_header = QtWidgets.QLabel("Chat")
+        chat_header = QtWidgets.QLabel("채팅")
         chat_header.setObjectName("chat-header")
         header_row.addWidget(chat_header)
         header_row.addStretch(1)
@@ -177,7 +179,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.chat_input.model_button.clicked.connect(self._open_settings)
         chat_panel.addLayout(header_row)
         chat_panel.addWidget(self._build_top_controls())
-        self.thinking_label = QtWidgets.QLabel("Thinking…")
+        self.thinking_label = QtWidgets.QLabel("생각 중…")
         self.thinking_label.setObjectName("thinking-label")
         self.thinking_label.setVisible(False)
         chat_panel.addWidget(self.thinking_label)
@@ -200,14 +202,14 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
 
-        brand = QtWidgets.QLabel("Agent")
+        brand = QtWidgets.QLabel("AI AutoPilot")
         brand.setObjectName("sidebar-brand")
         layout.addWidget(brand)
 
-        new_chat_button = QtWidgets.QPushButton("New Chat")
+        new_chat_button = QtWidgets.QPushButton("새 채팅")
         new_chat_button.setObjectName("sidebar-button")
         new_chat_button.clicked.connect(self._reset_session)
-        settings_button = QtWidgets.QPushButton("Settings")
+        settings_button = QtWidgets.QPushButton("설정")
         settings_button.setObjectName("sidebar-button")
         settings_button.clicked.connect(self._open_settings)
         layout.addWidget(new_chat_button)
@@ -223,23 +225,23 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.setSpacing(8)
 
         self.capture_mode_combo = QtWidgets.QComboBox()
-        self.capture_mode_combo.addItem("Active Window", "active")
+        self.capture_mode_combo.addItem("활성 창", "active")
         self.capture_mode_combo.addItem("ROI", "roi")
-        self.capture_mode_combo.addItem("Monitor", "monitor")
+        self.capture_mode_combo.addItem("모니터", "monitor")
         self.capture_mode_combo.currentIndexChanged.connect(self._set_capture_mode)
 
         self.monitor_combo = QtWidgets.QComboBox()
         self._refresh_monitors()
         self.monitor_combo.currentIndexChanged.connect(self._set_monitor)
 
-        self.roi_button = QtWidgets.QPushButton("Select ROI")
+        self.roi_button = QtWidgets.QPushButton("ROI 선택")
         self.roi_button.setObjectName("pill-button")
         self.roi_button.clicked.connect(self._select_roi)
-        self.roi_status = QtWidgets.QLabel("ROI: not set")
+        self.roi_status = QtWidgets.QLabel("ROI: 미설정")
         self.roi_status.setObjectName("roi-status")
 
-        self.loop_checkbox = QtWidgets.QCheckBox("Repeat")
-        stop_button = QtWidgets.QPushButton("Stop")
+        self.loop_checkbox = QtWidgets.QCheckBox("반복 실행")
+        stop_button = QtWidgets.QPushButton("중지")
         stop_button.setObjectName("pill-button")
         stop_button.clicked.connect(self._stop_loop)
 
@@ -455,10 +457,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.busy = False
 
     def _confirm_risky(self) -> bool:
-        first = QtWidgets.QMessageBox.question(self, "Confirm", "위험 작업이 감지되었습니다. 계속할까요?")
+        first = QtWidgets.QMessageBox.question(self, "확인", "위험 작업이 감지되었습니다. 계속할까요?")
         if first != QtWidgets.QMessageBox.Yes:
             return False
-        second = QtWidgets.QMessageBox.question(self, "Confirm", "정말로 실행하시겠습니까?")
+        second = QtWidgets.QMessageBox.question(self, "확인", "정말로 실행하시겠습니까?")
         return second == QtWidgets.QMessageBox.Yes
 
     def _set_capture_mode(self, index: int) -> None:
@@ -500,7 +502,7 @@ class MainWindow(QtWidgets.QMainWindow):
         monitors = self.capture.describe_available_monitors()
         self.monitor_combo.clear()
         for monitor in monitors:
-            label = f"Monitor {monitor['index']} ({monitor['width']}x{monitor['height']})"
+            label = f"모니터 {monitor['index']} ({monitor['width']}x{monitor['height']})"
             self.monitor_combo.addItem(label, monitor["index"])
 
     def _apply_theme(self) -> None:

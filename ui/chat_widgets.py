@@ -84,7 +84,7 @@ class ChatInputWidget(QtWidgets.QWidget):
         container_layout.setSpacing(8)
 
         self.text_edit = QtWidgets.QTextEdit()
-        self.text_edit.setPlaceholderText("Send a message")
+        self.text_edit.setPlaceholderText("메시지를 입력하세요")
         self.text_edit.setMinimumHeight(68)
         self.text_edit.setAcceptRichText(False)
         font = QtGui.QFont("Segoe UI")
@@ -95,7 +95,7 @@ class ChatInputWidget(QtWidgets.QWidget):
         actions_row = QtWidgets.QHBoxLayout()
         actions_row.setContentsMargins(0, 0, 0, 0)
         actions_row.setSpacing(10)
-        self.model_button = QtWidgets.QPushButton("model")
+        self.model_button = QtWidgets.QPushButton("모델")
         self.model_button.setObjectName("chat-model")
         self.send_button = QtWidgets.QPushButton("↑")
         self.send_button.setObjectName("chat-send")
@@ -155,6 +155,7 @@ class ChatView(QtWidgets.QScrollArea):
         self.layout.insertWidget(self.layout.count() - 1, row)
         self._scroll_to_bottom()
         QtCore.QTimer.singleShot(0, self._scroll_to_bottom)
+        QtCore.QTimer.singleShot(50, self._scroll_to_bottom)
 
     def clear_messages(self) -> None:
         while self.layout.count() > 1:

@@ -8,7 +8,7 @@ class SettingsDialog(QtWidgets.QDialog):
 
     def __init__(self, settings: dict, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Settings")
+        self.setWindowTitle("설정")
         self.settings = settings
         layout = QtWidgets.QVBoxLayout(self)
 
@@ -25,12 +25,12 @@ class SettingsDialog(QtWidgets.QDialog):
         self.timeout = QtWidgets.QDoubleSpinBox()
         self.timeout.setRange(5.0, 120.0)
         self.timeout.setSingleStep(5.0)
-        form.addRow("Provider", self.provider_type)
+        form.addRow("프로바이더", self.provider_type)
         form.addRow("Base URL", self.base_url)
-        form.addRow("API Key", self.api_key)
-        form.addRow("Model", self.model_name)
-        form.addRow("Temperature", self.temperature)
-        form.addRow("Timeout", self.timeout)
+        form.addRow("API 키", self.api_key)
+        form.addRow("모델", self.model_name)
+        form.addRow("온도", self.temperature)
+        form.addRow("타임아웃", self.timeout)
 
         self.require_confirmation = QtWidgets.QCheckBox("위험 액션 2단계 승인")
         self.block_risky = QtWidgets.QCheckBox("위험 액션 자동 차단")
@@ -44,8 +44,8 @@ class SettingsDialog(QtWidgets.QDialog):
         form.addRow(self.block_risky)
         form.addRow(self.allow_outside_roi)
         form.addRow(self.require_focus)
-        form.addRow("Max Actions", self.max_actions)
-        form.addRow("Max Iterations", self.max_iters)
+        form.addRow("최대 액션 수", self.max_actions)
+        form.addRow("최대 반복 수", self.max_iters)
 
         layout.addLayout(form)
 
